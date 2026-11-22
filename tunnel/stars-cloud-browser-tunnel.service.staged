@@ -1,0 +1,23 @@
+[Unit]
+Description=STARS Cloud Browser private OpenAI Secure MCP Tunnel (separate identity)
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+# The read-only firewall probe needs the host netlink socket.
+ExecStartPre=+/usr/bin/python3 /opt/stars-cloud-browser/tunnel/preflight.py --strict
+ExecStart=/opt/stars-cloud-browser/tunnel/tunnel-client run --config /etc/stars-cloud-browser/tunnel.yaml
+Restart=on-failure
+RestartSec=12
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+LimitNOFILE=4096
+
+[Install]
+WantedBy=multi-user.target

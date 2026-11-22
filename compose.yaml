@@ -1,0 +1,56 @@
+name: stars-cloud-browser
+services:
+  browser:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: stars-cloud-browser:0.4.1-local
+    init: true
+    # Startup is owned by the firewall-gated systemd unit; never start early at Docker boot.
+    restart: "no"
+    user: "10001:10001"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+      - seccomp=/opt/stars-cloud-browser/security/seccomp_profile.json
+    cap_drop:
+      - ALL
+    pids_limit: 160
+    mem_limit: 1200m
+    cpus: 1.25
+    shm_size: 256m
+    tmpfs:
+      - /tmp:size=192m,mode=1777,nosuid,nodev
+      - /home/browser/.cache:size=64m,uid=10001,gid=10001,mode=0700,nosuid,nodev
+    ports:
+      - "127.0.0.1:8811:8811"
+    volumes:
+      - browser-profile:/data/profile
+    env_file:
+      - .env
+    environment:
+      # Browser binary is from Debian, NOT a second downloaded Playwright bundle.
+      STARS_BROWSER_EXECUTABLE: /usr/bin/chromium
+      STARS_BROWSER_CHROMIUM_SANDBOX: "1"
+      STARS_BROWSER_PROFILE: /data/profile
+      STARS_BROWSER_TRANSFER_DIR: /tmp/stars-browser-transfers
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8811/healthz', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 90s
+    # Networking: Docker bridge with IPv4-only and host DOCKER-USER outbound
+    # deny rules for private/metadata/Tailnet ranges is REQUIRED before live use.
+    networks:
+      browser-egress:
+        ipv4_address: 172.30.251.2
+networks:
+  browser-egress:
+    driver: bridge
+    enable_ipv6: false
+    ipam:
+      config:
+        - subnet: 172.30.251.0/28
+volumes:
+  browser-profile:

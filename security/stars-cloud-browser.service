@@ -1,0 +1,22 @@
+[Unit]
+Description=STARS Cloud Browser (scoped firewall-gated Docker)
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=3
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/stars-cloud-browser
+ExecStartPre=/usr/bin/python3 /opt/stars-cloud-browser/security/firewall.py --apply
+ExecStart=/usr/bin/docker compose -f /opt/stars-cloud-browser/compose.yaml up --no-color --abort-on-container-exit
+ExecStop=/usr/bin/docker compose -f /opt/stars-cloud-browser/compose.yaml down
+Restart=on-failure
+RestartSec=15
+TimeoutStartSec=180
+TimeoutStopSec=60
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target
