@@ -1,46 +1,179 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>STARS Cloud Browser</title>
-<style>
-:root{color-scheme:dark;font:14px system-ui,sans-serif;background:#0b1420;color:#edf4ff}
-*{box-sizing:border-box}body{margin:0}
-button,input,select{font:inherit;color:inherit;background:#17283d;border:1px solid #3c5672;border-radius:7px;min-height:38px;padding:7px 10px}
-button{cursor:pointer;touch-action:manipulation}button:active{background:#304c6b}button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid #75b8ff}
-header{position:sticky;top:0;z-index:2;background:#122035;border-bottom:1px solid #2b4058;padding:8px;display:grid;gap:6px}
-.bar{display:flex;align-items:center;gap:5px;min-width:0}.brand{font-weight:750;white-space:nowrap;font-size:13px;margin-right:auto}
-#url{flex:1;min-width:0}#tabs{max-width:35vw;min-width:88px;flex:1}
-#workspace{background:#060b12;overflow:auto;text-align:center;min-height:35vh}
-#screen{display:block;width:100%;height:auto;max-width:1280px;margin:0 auto;cursor:crosshair;touch-action:manipulation;background:#19273c}
-#status{font-size:12px;padding:5px 9px;color:#aac3e1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-height:25px}
-#controls{position:sticky;bottom:0;padding:6px 8px calc(6px + env(safe-area-inset-bottom));background:#122035;border-top:1px solid #2b4058;display:grid;gap:6px}
-#typing{flex:1;min-width:0}.small{min-width:39px;padding:7px 8px}.muted{font-size:11px;color:#9aafc8;margin:0 9px 12px}
-.advanced{padding:6px 9px;border-bottom:1px solid #273e57;background:#111e30}summary{cursor:pointer;padding:6px 0;font-size:12px}
-.details{display:flex;gap:6px;flex-wrap:wrap;margin:7px 0}.details button{min-height:34px}
-#screenText{white-space:pre-wrap;overflow-wrap:anywhere;max-height:50vh;overflow:auto;font-size:12px}
-#textDialog{border:1px solid #54708d;background:#0e1826;color:#edf4ff;border-radius:10px;max-width:min(94vw,720px);max-height:85vh}
-#files{list-style:none;padding:0;margin:7px 0;display:grid;gap:5px}#files li{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:12px}#files a{color:#9fd3ff}#fileSelector{min-width:145px;flex:1}#liveFps{max-width:90px}#textDialog::backdrop{background:#000a}#grantStatus{font-size:12px;color:#bdcde2}
-@media(min-width:750px){header{grid-template-columns:1fr auto}.bar.main{grid-column:1}.bar.tabs{grid-column:2}#controls{grid-template-columns:minmax(0,1fr) auto}}
-</style>
-</head><body>
-<header>
- <div class="bar main"><span class="brand">✦ STARS</span><button id="back" class="small" title="Back" aria-label="Back">‹</button><button id="forward" class="small" title="Forward" aria-label="Forward">›</button><button id="refresh" class="small" title="Reload" aria-label="Reload">↻</button><input id="url" type="url" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Website address" placeholder="https://example.org"><button id="go">Go</button></div>
- <div class="bar tabs"><button id="viewport" class="small" title="Switch desktop/compact viewport">Desktop</button><select id="tabs" aria-label="Tabs"></select><button id="new" class="small" title="New tab" aria-label="New tab">＋</button><button id="close" class="small" title="Close tab" aria-label="Close tab">×</button></div>
-</header>
-<div id="status" role="status">Connecting…</div>
-<div id="workspace"><img id="screen" alt="Remote Chromium viewport. Tap to click." draggable="false"></div>
-<details class="advanced"><summary>Tools · Live view · Files · AI grants</summary><div class="details">
- <button id="liveSwitch">Stop live</button><label for="liveFps">Frames/sec</label><select id="liveFps"><option>1</option><option selected>2</option><option>3</option></select><span id="liveState">Live view</span><button id="pageText">Read page text</button><a id="png" href="/api/screenshot?format=png" download="stars-browser.png"><button type="button">Save PNG</button></a>
- <label for="grantLength">AI control:</label><select id="grantLength" aria-label="AI control duration"><option value="300">5 min</option><option value="900" selected>15 min</option><option value="1800">30 min</option></select>
- <button id="grant">Allow</button><button id="revoke">Revoke</button><span id="grantStatus">Locked</span>
-</div><details><summary>File transfers · 16 MiB/file · 30-minute lifetime</summary>
- <div class="details"><input id="uploadFile" type="file" aria-label="Choose file to stage for website upload"><button id="stageFile">Stage upload</button><input id="fileSelector" type="text" value="input[type=file]" aria-label="Website file input CSS selector"><button id="refreshFiles">Refresh files</button></div>
- <ul id="files" aria-live="polite"></ul><p class="muted">Files are temporary and unscanned. Downloaded files are not automatically opened or executed.</p>
- </details></details>
-<div id="controls"><div class="bar"><input id="typing" type="text" autocomplete="off" placeholder="Type in selected field" aria-label="Type into page"><button id="send">Type</button><button id="enter" class="small">Enter</button><button id="tab" class="small">Tab</button></div>
-<div class="bar"><button id="up" class="small" aria-label="Scroll up">↑</button><button id="down" class="small" aria-label="Scroll down">↓</button><button id="bksp" class="small" aria-label="Backspace">⌫</button><button id="esc" class="small">Esc</button><button id="snapshot" class="small" title="Refresh preview">Preview ↻</button></div></div>
-<p class="muted">Tailnet-only viewer. Live images stop when the page is hidden. AI controls remain locked unless you grant temporary access. Website content is untrusted.</p>
-<dialog id="textDialog"><div class="bar"><b>Page text</b><button id="closeText" style="margin-left:auto">Close</button></div><pre id="screenText"></pre></dialog>
-<script src="/ui.js" defer></script>
-</body></html>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0b1220">
+  <meta name="description" content="Private STARS Cloud Browser workspace">
+  <title>STARS Cloud Browser</title>
+  <link rel="stylesheet" href="/ui.css">
+</head>
+<body>
+  <header class="appbar">
+    <div class="appbar-inner">
+      <div class="identity" aria-label="STARS Cloud Browser">
+        <div class="brandmark" aria-hidden="true">✦</div>
+        <div class="identity-text">
+          <strong>STARS <span>Cloud Browser</span></strong>
+          <small>Private remote workspace</small>
+        </div>
+      </div>
+      <div class="connection">
+        <span class="connection-dot" aria-hidden="true"></span>
+        <span id="connectionBadge">Connecting</span>
+        <span class="network-badge">TAILNET ONLY</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="shell">
+    <section class="navigation card" aria-label="Browser navigation">
+      <div class="address-bar">
+        <div class="nav-buttons" aria-label="Page navigation">
+          <button id="back" class="icon-btn" type="button" aria-label="Back" title="Back">←</button>
+          <button id="forward" class="icon-btn" type="button" aria-label="Forward" title="Forward">→</button>
+          <button id="refresh" class="icon-btn" type="button" aria-label="Reload" title="Reload">↻</button>
+        </div>
+        <div class="address-field">
+          <span class="address-symbol" aria-hidden="true">⌕</span>
+          <input id="url" type="url" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Website address" placeholder="Enter a public web address">
+        </div>
+        <button id="go" type="button" class="primary-btn go-btn">Go <span aria-hidden="true">↗</span></button>
+      </div>
+      <div class="tab-bar">
+        <div class="tab-selector">
+          <span class="tab-label">TAB</span>
+          <select id="tabs" aria-label="Browser tabs"></select>
+        </div>
+        <div class="tab-actions">
+          <button id="new" class="icon-btn" type="button" aria-label="New tab" title="New tab">＋</button>
+          <button id="close" class="icon-btn" type="button" aria-label="Close tab" title="Close tab">×</button>
+          <span class="action-separator" aria-hidden="true"></span>
+          <button id="viewport" class="mode-btn" type="button" title="Switch between desktop and compact viewport" aria-label="Switch browser viewport">Desktop</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="viewer card" aria-label="Remote browser viewport">
+      <div class="viewer-top">
+        <div>
+          <div class="eyebrow">REMOTE SESSION</div>
+          <h1>Browser viewport</h1>
+        </div>
+        <div class="viewer-actions">
+          <span id="livePill" class="live-pill" aria-live="polite">LIVE</span>
+          <button id="jumpFiles" type="button" class="shortcut-btn">Files <span id="filesCount" class="counter" aria-label="Staged files">0</span></button>
+          <button id="jumpGrant" type="button" class="shortcut-btn"><span id="aiPill">AI locked</span></button>
+        </div>
+      </div>
+      <div id="workspace">
+        <img id="screen" alt="Remote Chromium viewport. Tap to click the webpage." draggable="false">
+      </div>
+      <div class="statusbar">
+        <span class="status-dot" aria-hidden="true"></span>
+        <div id="status" role="status" aria-live="polite">Connecting to remote browser…</div>
+      </div>
+    </section>
+
+    <div class="panel-grid">
+      <details class="panel card" id="viewerPanel" open>
+        <summary>
+          <span class="panel-icon" aria-hidden="true">◉</span>
+          <span class="panel-heading"><strong>View &amp; capture</strong><small>Live stream, preview and screenshots</small></span>
+          <span class="chevron" aria-hidden="true">⌄</span>
+        </summary>
+        <div class="panel-content">
+          <div class="action-line">
+            <button id="liveSwitch" type="button" class="secondary-btn">Stop live</button>
+            <label class="field-inline" for="liveFps">FPS
+              <select id="liveFps" aria-label="Live frames per second"><option>1</option><option selected>2</option><option>3</option></select>
+            </label>
+            <span id="liveState" class="subtle-state">Live view</span>
+          </div>
+          <div class="action-line">
+            <button id="pageText" type="button" class="secondary-btn">Read page text</button>
+            <a id="png" class="secondary-btn link-btn" href="/api/screenshot?format=png" download="stars-browser.png">Save PNG</a>
+          </div>
+        </div>
+      </details>
+
+      <details class="panel card" id="filesPanel">
+        <summary>
+          <span class="panel-icon" aria-hidden="true">⇩</span>
+          <span class="panel-heading"><strong>File transfers</strong><small>Download to phone or attach to a webpage</small></span>
+          <span class="chevron" aria-hidden="true">⌄</span>
+        </summary>
+        <div class="panel-content">
+          <div class="section-label">RECENT TRANSFERS</div>
+          <div class="files-topline">
+            <span>Files expire after 30 minutes</span>
+            <button id="refreshFiles" type="button" class="text-btn">↻ Refresh</button>
+          </div>
+          <ul id="files" aria-live="polite"><li class="empty-files">Loading transfers…</li></ul>
+          <div class="upload-area">
+            <label for="uploadFile" class="input-caption">UPLOAD FROM YOUR DEVICE</label>
+            <input id="uploadFile" type="file" aria-label="Choose file to stage for website upload">
+            <div class="upload-actions">
+              <button id="stageFile" class="primary-btn" type="button">Stage upload</button>
+              <label for="fileSelector" class="selector-field">Target input
+                <input id="fileSelector" type="text" value="input[type=file]" aria-label="Website file input CSS selector">
+              </label>
+            </div>
+          </div>
+          <p class="helper-text">16 MiB per file · Temporary and unscanned · Never auto-executed</p>
+        </div>
+      </details>
+
+      <details class="panel card" id="accessPanel">
+        <summary>
+          <span class="panel-icon" aria-hidden="true">✧</span>
+          <span class="panel-heading"><strong>AI access</strong><small>Explicit, temporary control over browser actions</small></span>
+          <span class="chevron" aria-hidden="true">⌄</span>
+        </summary>
+        <div class="panel-content">
+          <div class="access-status"><span class="access-dot" aria-hidden="true"></span><span id="grantStatus">Locked · permission required</span></div>
+          <div class="access-actions">
+            <label for="grantLength">Allow for
+              <select id="grantLength" aria-label="AI control duration">
+                <option value="300">5 minutes</option>
+                <option value="900" selected>15 minutes</option>
+                <option value="1800">30 minutes</option>
+              </select>
+            </label>
+            <button id="grant" class="primary-btn" type="button">Allow AI</button>
+            <button id="revoke" class="danger-btn" type="button">Revoke</button>
+          </div>
+          <p class="helper-text">AI control is locked by default. Permission expires automatically, and you can revoke it at any time.</p>
+        </div>
+      </details>
+    </div>
+    <p class="privacy-note">Private Tailnet-only session. Live images pause when the page is hidden. Website content and transferred files are untrusted.</p>
+  </main>
+
+  <div id="controls" class="control-dock" aria-label="Remote keyboard and scrolling controls">
+    <div class="dock-inner">
+      <div class="control-line">
+        <label class="visually-hidden" for="typing">Text to type in the selected webpage field</label>
+        <input id="typing" type="text" autocomplete="off" placeholder="Type into the webpage…" aria-label="Type in selected field">
+        <button id="send" type="button" class="primary-btn">Type</button>
+        <button id="enter" type="button" class="dock-key">Enter</button>
+        <button id="tab" type="button" class="dock-key">Tab</button>
+      </div>
+      <div class="control-line secondary-line">
+        <span class="keyboard-hint">QUICK KEYS</span>
+        <button id="up" type="button" class="dock-key" aria-label="Scroll up">↑</button>
+        <button id="down" type="button" class="dock-key" aria-label="Scroll down">↓</button>
+        <button id="bksp" type="button" class="dock-key" aria-label="Backspace">⌫</button>
+        <button id="esc" type="button" class="dock-key">Esc</button>
+        <button id="snapshot" type="button" class="dock-key preview-btn" title="Refresh preview">↻ Preview</button>
+      </div>
+    </div>
+  </div>
+
+  <dialog id="textDialog" aria-label="Page text">
+    <div class="dialog-header"><strong>Page text</strong><button id="closeText" class="icon-btn" type="button" aria-label="Close text dialog">×</button></div>
+    <pre id="screenText"></pre>
+  </dialog>
+  <script src="/ui.js" defer></script>
+</body>
+</html>
