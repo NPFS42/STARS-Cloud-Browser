@@ -3,7 +3,6 @@ const $ = id => document.getElementById(id);
 const showStatus = message => { $('status').textContent = message; };
 let inflight = false;
 let viewport = { width: 1280, height: 800 };
-let previewObjectUrl = '';
 let pollTimer;
 let wantLive = true;
 let liveConnected = false;
@@ -52,13 +51,9 @@ async function refresh() {
     $('aiPill').textContent = remaining > 0 ? 'AI enabled' : 'AI locked';
     showStatus(`${data.title || 'New tab'} · ${data.url}`);
     if (!liveConnected) {
-      // Fallback JPEG snapshot; while live, keep one long-lived stream.
-      const img = await api('/api/screenshot?format=jpeg');
-      const imageUrl = URL.createObjectURL(await img.blob());
-      const previous = previewObjectUrl;
-      previewObjectUrl = imageUrl;
-      $('screen').src = imageUrl;
-      if (previous) URL.revokeObjectURL(previous);
+      // Keep fallback images on the same authenticated origin. Blob URLs are
+      // intentionally disallowed by the viewer's strict img-src CSP policy.
+      $('screen').src = '/api/screenshot?format=jpeg&refresh=' + Date.now();
     }
   } catch(err) {
     document.documentElement.dataset.connection = 'offline';
@@ -212,7 +207,7 @@ $('filesPanel').addEventListener('toggle', () => { if ($('filesPanel').open) lis
 setInterval(() => { if (!document.hidden && $('filesPanel').open) listFiles(); }, 15000);
 // Only refresh when the phone is looking at the browser. No permanent rapid screenshot stream.
 document.addEventListener('visibilitychange', () => { syncLive(); if(!document.hidden) refresh(); });
-window.addEventListener('pagehide', () => { liveConnected=false; $('screen').removeAttribute('src'); if(previewObjectUrl) URL.revokeObjectURL(previewObjectUrl); });
+window.addEventListener('pagehide', () => { liveConnected=false; $('screen').removeAttribute('src'); });
 pollTimer = setInterval(refresh, 7000);
 syncLive();
 refresh();
