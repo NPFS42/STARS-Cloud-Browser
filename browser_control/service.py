@@ -282,8 +282,17 @@ async def logout():
     response.delete_cookie("stars_browser_session",secure=True,samesite="strict",path="/")
     return response
 
-@app.get("/",dependencies=[Depends(require_ui)])
-async def home():
+@app.get("/")
+async def home(request: Request):
+    # An expired viewer session should open the existing login/pairing screen,
+    # not expose FastAPI's machine-readable authentication error in a browser.
+    # All API, stylesheet, and MCP routes retain their existing authentication.
+    try:
+        require_ui(request)
+    except HTTPException as exc:
+        if exc.status_code != 401:
+            raise
+        return Response(status_code=303,headers={"Location":"/login","Cache-Control":"no-store"})
     return FileResponse(STATIC/"index.html",media_type="text/html",headers={"Cache-Control":"no-store","Content-Security-Policy":"default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"})
 
 @app.get("/ui.js",dependencies=[Depends(require_ui)])
