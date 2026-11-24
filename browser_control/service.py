@@ -14,6 +14,7 @@ from pydantic import BaseModel
 from .browser import BrowserController
 from .transfers import MAX_FILE_BYTES
 from .security import check_configuration, issue_session, require_ui, require_mcp
+from .pairing import pairing, LIFETIME_SECONDS
 
 controller = BrowserController()
 STATIC = Path(__file__).parent / "static"
@@ -214,7 +215,7 @@ async def healthz():
 
 @app.get("/login")
 async def login_page():
-    return HTMLResponse("""<!doctype html><html><head><meta name='viewport' content='width=device-width,initial-scale=1'></head><body><h2>STARS Cloud Browser</h2><p>Tailnet-only viewer</p><form action='/login' method='post'><input type='password' name='token' autocomplete='current-password' placeholder='Access secret' required><button type='submit'>Sign in</button></form></body></html>""")
+    return HTMLResponse("""<!doctype html><html><head><meta name='viewport' content='width=device-width,initial-scale=1'></head><body><h2>STARS Cloud Browser</h2><p>Tailnet-only viewer</p><form action='/login' method='post'><input type='password' name='token' autocomplete='current-password' placeholder='Access secret' required><button type='submit'>Sign in</button></form><p><a href="/pair">No access token? Request administrator-approved pairing</a></p></body></html>""")
 
 @app.post("/login")
 async def login_post(request:Request):
@@ -230,6 +231,51 @@ async def login_post(request:Request):
     response.set_cookie("stars_browser_session",issue_session(secret),secure=True,httponly=True,samesite="strict",max_age=28800,path="/")
     return response
 
+@app.get("/pair")
+async def pairing_page():
+    return HTMLResponse("""<!doctype html><html><head><meta name='viewport' content='width=device-width,initial-scale=1'></head><body><h2>STARS Cloud Browser device pairing</h2><p>The existing viewer token is not displayed or changed. A VPS administrator must approve this device request.</p><form method='post' action='/pair/request'><button type='submit'>Request 10-minute pairing code</button></form><p><a href='/login'>Return to login</a></p></body></html>""",
+                        headers={"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"})
+
+@app.post("/pair/request")
+async def pairing_request(request: Request):
+    # No authentication is granted by requesting a challenge.
+    origin = request.headers.get("origin")
+    if origin:
+        from urllib.parse import urlsplit
+        parsed = urlsplit(origin)
+        if parsed.scheme != "https" or parsed.netloc != request.headers.get("host"):
+            raise HTTPException(403, "Origin rejected")
+    try:
+        _, cookie = pairing.request()
+    except ValueError as exc:
+        raise HTTPException(429, str(exc)) from exc
+    response = Response(status_code=303,headers={"Location":"/pair/finish", "Cache-Control":"no-store"})
+    response.set_cookie("stars_browser_pair",cookie,secure=True,httponly=True,samesite="strict",
+                        max_age=LIFETIME_SECONDS,path="/")
+    return response
+
+@app.get("/pair/finish")
+async def pairing_finish(request: Request):
+    code, authorized = pairing.status(request.cookies.get("stars_browser_pair"))
+    if not code:
+        return HTMLResponse("<h2>Pairing expired or unavailable</h2><p><a href='/pair'>Request a new pairing code</a></p>",status_code=410,headers={"Cache-Control":"no-store"})
+    if authorized:
+        secret=os.environ.get("STARS_BROWSER_UI_SECRET","")
+        response=Response(status_code=303,headers={"Location":"/","Cache-Control":"no-store"})
+        response.set_cookie("stars_browser_session",issue_session(secret),secure=True,
+                            httponly=True,samesite="strict",max_age=28800,path="/")
+        response.delete_cookie("stars_browser_pair",secure=True,httponly=True,samesite="strict",path="/")
+        return response
+    return HTMLResponse(
+       "<!doctype html><html><head><meta name='viewport' content='width=device-width,initial-scale=1'>"
+       "<meta http-equiv='refresh' content='5;url=/pair/finish'></head><body>"
+       "<h2>Pending VPS administrator approval</h2>"
+       "<p>Share this non-secret challenge code with the administrator, not your login token:</p>"
+       f"<p><strong style='font-size:1.5rem;letter-spacing:.13rem'>{code}</strong></p>"
+       "<p>Valid for 10 minutes; this browser will automatically sign in when approved."
+       " Keep this tab open.</p><p><a href='/pair/finish'>Check again</a></p></body></html>",
+       headers={"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"})
+
 @app.post("/logout",dependencies=[Depends(require_ui)])
 async def logout():
     response=Response(status_code=303,headers={"Location":"/login"})
@@ -243,6 +289,10 @@ async def home():
 @app.get("/ui.js",dependencies=[Depends(require_ui)])
 async def javascript():
     return FileResponse(STATIC/"ui.js",media_type="application/javascript",headers={"Cache-Control":"no-store"})
+
+@app.get("/ui.css",dependencies=[Depends(require_ui)])
+async def stylesheet():
+    return FileResponse(STATIC/"ui.css",media_type="text/css",headers={"Cache-Control":"no-store"})
 
 @app.post("/api/grant",dependencies=[Depends(require_ui)])
 async def write_grant(request:Request):
